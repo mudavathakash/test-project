@@ -18,8 +18,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - JENKINS_USER
-      - JENKINS_PASS
+      - jenkins.env
 
   webserver2:
     image: httpd
