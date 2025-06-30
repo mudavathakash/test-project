@@ -2,9 +2,9 @@
 services:
   webserver:
     image: nginx
-    container_name: con1
+    container_name: con2
     ports:
-      - "8000:80"
+      - "8001:80"
     volumes:
       - /test:/usr/share/nginx/html
     environment:
