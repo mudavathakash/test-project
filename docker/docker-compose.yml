@@ -1,0 +1,35 @@
+---
+services:
+  webserver:
+    image: nginx
+    container_name: con1
+    ports:
+      - "8000:80"
+    volumes:
+      - /test:/usr/share/nginx/html
+    environment:
+      - NGINX=production
+
+---
+services:
+  ci_cd:
+    image: jenkins/jenkins
+    container_name: con2
+    ports:
+      - "8080:8080"
+    environment:
+      - JENKINS_USER
+      - JENKINS_PASS
+
+  webserver2:
+    image: httpd
+    container_name: con3
+    ports:
+      - "8081:80"
+    volumes:
+      - myvol1:/usr/local/apache2/htdocs
+    environment:
+      - APACHE2=staging
+volumes:
+  myvol1:
+    name: v1
