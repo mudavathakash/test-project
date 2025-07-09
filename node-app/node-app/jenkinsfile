@@ -1,0 +1,31 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Deploy to Kubernetes Master') {
+            steps {
+                sshagent(['test']) {
+                    sh """
+                    ssh -o StrictHostKeyChecking=no ubuntu@52.66.205.76 '
+                        # Cleanup old folder
+                        rm -rf test-project
+
+                        # Clone your GitHub repo
+                        git clone https://github.com/Tatanagasai20/test-project.git
+
+                        # Navigate to your app
+                        cd test-project/node-app/node-app
+
+                        # Build Docker image
+                        docker build -t nodeapp-image .
+
+                        # Deploy to Kubernetes
+                        kubectl apply -f deployment.yaml
+                        kubectl apply -f service.yaml
+                    '
+                    """
+                }
+            }
+        }
+    }
+}
