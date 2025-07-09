@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         DOCKER_USER = 'tnagasai'
-        DOCKER_PASS = credentials('dockerhub-credentials-id') // Use Jenkins Credentials (Username+Password)
+        DOCKER_PASS = credentials('dockerhub-creds') // Use Jenkins Credentials (Username+Password)
     }
 
     stages {
