@@ -6,7 +6,7 @@ pipeline {
             steps {
                 sshagent(['test']) {
                     sh """
-                    ssh -o StrictHostKeyChecking=no ubuntu@52.66.205.76 '
+                    ssh -o StrictHostKeyChecking=no ubuntu@13.232.221.83 '
                         # Cleanup old folder
                         rm -rf test-project
 
