@@ -29,13 +29,13 @@ pipeline {
             steps {
                 sshagent(['test']) {
                     sh '''
-                    ssh -o StrictHostKeyChecking=no ubuntu@<K8S_MASTER_PUBLIC_IP> << 'EOF'
+                    ssh -o StrictHostKeyChecking=no ubuntu@13.232.221.83
                         kubectl delete -f test-project/node-app/node-app/deployment.yaml --ignore-not-found=true
                         kubectl delete -f test-project/node-app/node-app/service.yaml --ignore-not-found=true
 
                         kubectl apply -f test-project/node-app/node-app/deployment.yaml
                         kubectl apply -f test-project/node-app/node-app/service.yaml
-                    EOF
+                    
                     '''
                 }
             }
