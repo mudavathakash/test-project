@@ -1,7 +1,6 @@
 pipeline {
     agent any
 
-    // DOCKER_USER can stay here as a fixed string
     environment {
         DOCKER_USER = 'tnagasai'
     }
@@ -9,48 +8,29 @@ pipeline {
     stages {
         stage('Deploy to Kubernetes Master') {
             steps {
-                // This block makes the DOCKER_PASSWORD securely available
-                // as DOCKER_PASSWORD_VAR on the Jenkins agent.
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
-                                                  usernameVariable: 'DOCKER_USERNAME_VAR', // Use a different var name to avoid Groovy conflict
+                                                  usernameVariable: 'DOCKER_USERNAME_VAR',
                                                   passwordVariable: 'DOCKER_PASSWORD_VAR')]) {
                     sshagent(['test']) {
-                        // Use a "here document" to pass multiple commands to the remote SSH session.
-                        // Inside this 'sh' block, we are now on the Jenkins agent.
-                        // We need to pass the DOCKER_USERNAME_VAR and DOCKER_PASSWORD_VAR to the remote shell.
                         sh """
-                        ssh -o StrictHostKeyChecking=no ubuntu@13.232.221.83 <<'EOF'
-                            # Export the variables to the remote shell's environment.
-                            # IMPORTANT: Use single quotes for the EOF marker to prevent Groovy
-                            # from interpolating variables meant for the remote shell.
-                            # Then, use bash/shell variable expansion for the DOCKER_USERNAME_VAR and DOCKER_PASSWORD_VAR
-                            # that are passed from the Jenkins agent.
+                        ssh -o StrictHostKeyChecking=no ubuntu@13.232.221.83 <<'EOF_REMOTE_SCRIPT'
                             export DOCKER_USERNAME="${DOCKER_USERNAME_VAR}"
                             export DOCKER_PASSWORD="${DOCKER_PASSWORD_VAR}"
 
-                            # Cleanup old folder
                             rm -rf test-project
-
-                            # Clone your GitHub repo
                             git clone https://github.com/Tatanagasai20/test-project.git
-
-                            # Navigate to your app
                             cd test-project/node-app/node-app
 
-                            # Build and tag Docker image
                             docker build -t nodeapp-image .
                             docker tag nodeapp-image "\$DOCKER_USERNAME"/nodeapp-image:latest
 
-                            # Login to Docker Hub using the exported variables in the remote shell
                             echo "\$DOCKER_PASSWORD" | docker login -u "\$DOCKER_USERNAME" --password-stdin
 
-                            # Push the image
                             docker push "\$DOCKER_USERNAME"/nodeapp-image:latest
 
-                            # Deploy to Kubernetes
                             kubectl apply -f deployment.yaml --validate=false
                             kubectl apply -f service.yaml --validate=false
-                        EOF
+                        EOF_REMOTE_SCRIPT  // <--- ENSURE NO LEADING WHITESPACE HERE
                         """
                     }
                 }
