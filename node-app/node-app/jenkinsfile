@@ -1,41 +1,46 @@
 pipeline {
     agent any
 
-    environment {
-        DOCKER_USER = 'tnagasai'
-        DOCKER_PASS = credentials('dockerhub-creds') // Use Jenkins Credentials (Username+Password)
-    }
-
     stages {
         stage('Deploy to Kubernetes Master') {
             steps {
-                sshagent(['test']) {
-                    sh """
-                    ssh -o StrictHostKeyChecking=no ubuntu@13.232.221.83 
-                        # Cleanup old folder
-                        rm -rf test-project
+                // Use withCredentials to securely get Docker Hub password on the Jenkins agent
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
+                                                  usernameVariable: 'DOCKER_USERNAME',
+                                                  passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sshagent(['test']) {
+                        sh """
+                        # Pass credentials as environment variables to the remote SSH session.
+                        # This makes them visible in the process list on the remote host, so use with caution.
+                        ssh -o StrictHostKeyChecking=no ubuntu@13.232.221.83 <<EOF
+                            export DOCKER_USER='${DOCKER_USERNAME}'
+                            export DOCKER_PASS='${DOCKER_PASSWORD}' # VERY IMPORTANT: Double quotes around ${DOCKER_PASSWORD}
 
-                        # Clone your GitHub repo
-                        git clone https://github.com/Tatanagasai20/test-project.git
+                            # Cleanup old folder
+                            rm -rf test-project
 
-                        # Navigate to your app
-                        cd test-project/node-app/node-app
+                            # Clone your GitHub repo
+                            git clone https://github.com/Tatanagasai20/test-project.git
 
-                        # Build and tag Docker image
-                        docker build -t nodeapp-image .
-                        docker tag nodeapp-image \$DOCKER_USER/nodeapp-image:latest
+                            # Navigate to your app
+                            cd test-project/node-app/node-app
 
-                        # Login to Docker Hub
-                        echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                            # Build and tag Docker image
+                            docker build -t nodeapp-image .
+                            docker tag nodeapp-image ${DOCKER_USER}/nodeapp-image:latest
 
-                        # Push the image
-                        docker push \$DOCKER_USER/nodeapp-image:latest
+                            # Login to Docker Hub
+                            echo "\$DOCKER_PASS" | docker login -u "\$DOCKER_USER" --password-stdin
 
-                        # Deploy to Kubernetes
-                        kubectl apply -f deployment.yaml --validate=false
-                        kubectl apply -f service.yaml --validate=false
-                    
-                    """
+                            # Push the image
+                            docker push ${DOCKER_USER}/nodeapp-image:latest
+
+                            # Deploy to Kubernetes
+                            kubectl apply -f deployment.yaml --validate=false
+                            kubectl apply -f service.yaml --validate=false
+                        EOF
+                        """
+                    }
                 }
             }
         }
