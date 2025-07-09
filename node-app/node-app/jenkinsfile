@@ -1,38 +1,31 @@
 pipeline {
     agent any
 
-    environment {
-        DOCKER_IMAGE = "tatanagasai20/nodeapp-image:latest" // Replace with your Docker Hub username
-    }
-
     stages {
         stage('Deploy to Kubernetes Master') {
             steps {
                 sshagent(['test']) {
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        sh """
-                        ssh -o StrictHostKeyChecking=no ubuntu@13.232.221.83 '
-                            # Cleanup old folder
-                            rm -rf test-project
+                    sh """
+                    ssh -o StrictHostKeyChecking=no ubuntu@13.232.221.83 '
+                        # Remove old project
+                        rm -rf test-project
 
-                            # Clone your GitHub repo
-                            git clone https://github.com/Tatanagasai20/test-project.git
+                        # Clone the repo
+                        git clone https://github.com/Tatanagasai20/test-project.git
 
-                            # Navigate to your app
-                            cd test-project/node-app/node-app
+                        # Navigate to the app
+                        cd test-project/node-app/node-app
 
-                            # Build, Tag, and Push Docker image
-                            docker build -t nodeapp-image .
-                            docker tag nodeapp-image $DOCKER_IMAGE
-                            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-                            docker push $DOCKER_IMAGE
+                        # Build and push Docker image
+                        docker build -t tnagasai/nodeapp-image:latest .
+                        docker login -u tnagasai -p <DOCKER_HUB_PASSWORD>
+                        docker push tnagasai/nodeapp-image:latest
 
-                            # Deploy to Kubernetes
-                            kubectl apply -f deployment.yaml --validate=false
-                            kubectl apply -f service.yaml --validate=false
-                        '
-                        """
-                    }
+                        # Deploy to Kubernetes
+                        kubectl apply -f deployment.yaml --validate=false
+                        kubectl apply -f service.yaml --validate=false
+                    '
+                    """
                 }
             }
         }
