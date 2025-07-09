@@ -6,21 +6,24 @@ pipeline {
     }
 
     stages {
+        stage('Clone Code') {
+            steps {
+                git 'https://github.com/Tatanagasai20/test-project.git'
+            }
+        }
+
         stage('Build & Push Docker Image') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
-                                                  usernameVariable: 'DOCKER_USERNAME_VAR',
-                                                  passwordVariable: 'DOCKER_PASSWORD_VAR')]) {
-                    sh '''
-                        rm -rf test-project
-                        git clone https://github.com/Tatanagasai20/test-project.git
-                        cd test-project/node-app/node-app
-
-                        docker build -t nodeapp-image .
-                        docker tag nodeapp-image $DOCKER_USERNAME_VAR/nodeapp-image:latest
-                        echo $DOCKER_PASSWORD_VAR | docker login -u $DOCKER_USERNAME_VAR --password-stdin
-                        docker push $DOCKER_USERNAME_VAR/nodeapp-image:latest
-                    '''
+                dir('node-app/node-app') {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )]) {
+                        sh 'docker build -t $DOCKER_USER/nodeapp-image:latest .'
+                        sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
+                        sh 'docker push $DOCKER_USER/nodeapp-image:latest'
+                    }
                 }
             }
         }
@@ -29,13 +32,13 @@ pipeline {
             steps {
                 sshagent(['test']) {
                     sh '''
-                    ssh -o StrictHostKeyChecking=no ubuntu@13.232.221.83
-                        kubectl delete -f test-project/node-app/node-app/deployment.yaml --ignore-not-found=true
-                        kubectl delete -f test-project/node-app/node-app/service.yaml --ignore-not-found=true
-
-                        kubectl apply -f test-project/node-app/node-app/deployment.yaml
-                        kubectl apply -f test-project/node-app/node-app/service.yaml
-                    
+                    ssh -o StrictHostKeyChecking=no ubuntu@13.232.221.83 '
+                        rm -rf test-project &&
+                        git clone https://github.com/Tatanagasai20/test-project.git &&
+                        cd test-project/node-app/node-app &&
+                        /usr/bin/kubectl apply -f deployment.yaml &&
+                        /usr/bin/kubectl apply -f service.yaml
+                    '
                     '''
                 }
             }
