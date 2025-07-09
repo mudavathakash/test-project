@@ -1,20 +1,32 @@
 pipeline {
     agent any
 
+    // DOCKER_USER can stay here as a fixed string
+    environment {
+        DOCKER_USER = 'tnagasai'
+    }
+
     stages {
         stage('Deploy to Kubernetes Master') {
             steps {
-                // Use withCredentials to securely get Docker Hub password on the Jenkins agent
+                // This block makes the DOCKER_PASSWORD securely available
+                // as DOCKER_PASSWORD_VAR on the Jenkins agent.
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
-                                                  usernameVariable: 'DOCKER_USERNAME',
-                                                  passwordVariable: 'DOCKER_PASSWORD')]) {
+                                                  usernameVariable: 'DOCKER_USERNAME_VAR', // Use a different var name to avoid Groovy conflict
+                                                  passwordVariable: 'DOCKER_PASSWORD_VAR')]) {
                     sshagent(['test']) {
+                        // Use a "here document" to pass multiple commands to the remote SSH session.
+                        // Inside this 'sh' block, we are now on the Jenkins agent.
+                        // We need to pass the DOCKER_USERNAME_VAR and DOCKER_PASSWORD_VAR to the remote shell.
                         sh """
-                        # Pass credentials as environment variables to the remote SSH session.
-                        # This makes them visible in the process list on the remote host, so use with caution.
-                        ssh -o StrictHostKeyChecking=no ubuntu@13.232.221.83 <<EOF
-                            export DOCKER_USER='${DOCKER_USERNAME}'
-                            export DOCKER_PASS='${DOCKER_PASSWORD}' # VERY IMPORTANT: Double quotes around ${DOCKER_PASSWORD}
+                        ssh -o StrictHostKeyChecking=no ubuntu@13.232.221.83 <<'EOF'
+                            # Export the variables to the remote shell's environment.
+                            # IMPORTANT: Use single quotes for the EOF marker to prevent Groovy
+                            # from interpolating variables meant for the remote shell.
+                            # Then, use bash/shell variable expansion for the DOCKER_USERNAME_VAR and DOCKER_PASSWORD_VAR
+                            # that are passed from the Jenkins agent.
+                            export DOCKER_USERNAME="${DOCKER_USERNAME_VAR}"
+                            export DOCKER_PASSWORD="${DOCKER_PASSWORD_VAR}"
 
                             # Cleanup old folder
                             rm -rf test-project
@@ -27,13 +39,13 @@ pipeline {
 
                             # Build and tag Docker image
                             docker build -t nodeapp-image .
-                            docker tag nodeapp-image ${DOCKER_USER}/nodeapp-image:latest
+                            docker tag nodeapp-image "\$DOCKER_USERNAME"/nodeapp-image:latest
 
-                            # Login to Docker Hub
-                            echo "\$DOCKER_PASS" | docker login -u "\$DOCKER_USER" --password-stdin
+                            # Login to Docker Hub using the exported variables in the remote shell
+                            echo "\$DOCKER_PASSWORD" | docker login -u "\$DOCKER_USERNAME" --password-stdin
 
                             # Push the image
-                            docker push ${DOCKER_USER}/nodeapp-image:latest
+                            docker push "\$DOCKER_USERNAME"/nodeapp-image:latest
 
                             # Deploy to Kubernetes
                             kubectl apply -f deployment.yaml --validate=false
