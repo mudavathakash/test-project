@@ -4,8 +4,8 @@ pipeline {
     environment {
         DOCKER_IMAGE = "tnagasai/node-app:latest"
         APP_DIR = "test-project/node-app/node-app"
-        DOCKER_HOST = "ubuntu@13.233.206.224"     // Replace with your Docker EC2 public IP
-        K8S_MASTER = "ubuntu@3.110.103.242"        // Replace with your K8s master IP
+        DOCKER_HOST = "ubuntu@13.233.206.224"
+        K8S_MASTER = "ubuntu@3.110.103.242"
     }
 
     stages {
@@ -18,16 +18,18 @@ pipeline {
         stage('Build & Push Docker Image') {
             steps {
                 sshagent (credentials: ['test']) {
-                    sh """
-                    ssh -o StrictHostKeyChecking=no $DOCKER_HOST '
-                        rm -rf test-project || true &&
-                        git clone https://github.com/Tatanagasai20/test-project.git &&
-                        cd $APP_DIR &&
-                        docker build -t $DOCKER_IMAGE . &&
-                        echo "$DOCKER_HUB_PASSWORD" | docker login -u $DOCKER_HUB_USERNAME --password-stdin &&
-                        docker push $DOCKER_IMAGE
-                    '
-                    """
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                        sh """
+                        ssh -o StrictHostKeyChecking=no $DOCKER_HOST '
+                            rm -rf test-project || true &&
+                            git clone https://github.com/Tatanagasai20/test-project.git &&
+                            cd $APP_DIR &&
+                            docker build -t $DOCKER_IMAGE . &&
+                            echo "$PASSWORD" | docker login -u "$USERNAME" --password-stdin &&
+                            docker push $DOCKER_IMAGE
+                        '
+                        """
+                    }
                 }
             }
         }
