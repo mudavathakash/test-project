@@ -1,0 +1,53 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE = "tnagasai/flask-app:latest"
+        APP_DIR = "test-project/flask-app/flask-app"  // ✅ Updated here
+        DOCKER_HOST = "ubuntu@13.233.206.224"   // IP of Docker host EC2
+        K8S_MASTER = "ubuntu@3.110.103.242"     // IP of Kubernetes master EC2
+    }
+
+    stages {
+        stage('Clone Repository') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Tatanagasai20/test-project.git'
+            }
+        }
+
+        stage('Build & Push Docker Image') {
+            steps {
+                sshagent (credentials: ['test']) {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                        sh """
+                        ssh -o StrictHostKeyChecking=no $DOCKER_HOST '
+                            rm -rf test-project || true &&
+                            git clone https://github.com/Tatanagasai20/test-project.git &&
+                            cd $APP_DIR &&
+                            docker build -t $DOCKER_IMAGE . &&
+                            echo "$PASSWORD" | docker login -u "$USERNAME" --password-stdin &&
+                            docker push $DOCKER_IMAGE
+                        '
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sshagent (credentials: ['test']) {
+                    sh """
+                    ssh -o StrictHostKeyChecking=no $K8S_MASTER '
+                        rm -rf test-project || true &&
+                        git clone https://github.com/Tatanagasai20/test-project.git &&
+                        cd $APP_DIR &&
+                        kubectl apply -f deployment.yaml &&
+                        kubectl apply -f service.yaml
+                    '
+                    """
+                }
+            }
+        }
+    }
+}
