@@ -4,9 +4,8 @@ pipeline {
     environment {
         DOCKER_IMAGE = "tnagasai/node-app:latest"
         APP_DIR = "test-project/node-app/node-app"
-        SSH_KEY_ID = "test"
-        DOCKER_HOST = "ubuntu@13.233.206.224"   // Your Docker EC2 IP
-        K8S_MASTER = "ubuntu@3.110.103.242"     // Your Kubernetes Master IP
+        DOCKER_HOST = "ubuntu@13.233.206.224"     // Replace with your Docker EC2 public IP
+        K8S_MASTER = "ubuntu@3.110.103.242"        // Replace with your K8s master IP
     }
 
     stages {
@@ -18,25 +17,16 @@ pipeline {
 
         stage('Build & Push Docker Image') {
             steps {
-                sshagent (credentials: [env.SSH_KEY_ID]) {
+                sshagent (credentials: ['test']) {
                     sh """
-                        ssh -o StrictHostKeyChecking=no ${DOCKER_HOST} << EOF
-                            echo "🛠 Cleaning old repo (if any)..."
-                            rm -rf test-project || true
-
-                            echo "📥 Cloning repo..."
-                            git clone https://github.com/Tatanagasai20/test-project.git
-
-                            echo "🐳 Building Docker image..."
-                            cd ${APP_DIR}
-                            docker build -t ${DOCKER_IMAGE} .
-
-                            echo "🔐 Logging into Docker Hub..."
-                            echo "${DOCKER_HUB_PASSWORD}" | docker login -u "${DOCKER_HUB_USERNAME}" --password-stdin
-
-                            echo "📤 Pushing Docker image to Docker Hub..."
-                            docker push ${DOCKER_IMAGE}
-                        EOF
+                    ssh -o StrictHostKeyChecking=no $DOCKER_HOST '
+                        rm -rf test-project || true &&
+                        git clone https://github.com/Tatanagasai20/test-project.git &&
+                        cd $APP_DIR &&
+                        docker build -t $DOCKER_IMAGE . &&
+                        echo "$DOCKER_HUB_PASSWORD" | docker login -u $DOCKER_HUB_USERNAME --password-stdin &&
+                        docker push $DOCKER_IMAGE
+                    '
                     """
                 }
             }
@@ -44,20 +34,15 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                sshagent (credentials: [env.SSH_KEY_ID]) {
+                sshagent (credentials: ['test']) {
                     sh """
-                        ssh -o StrictHostKeyChecking=no ${K8S_MASTER} << EOF
-                            echo "📦 Fetching latest deployment YAMLs..."
-                            rm -rf test-project || true
-                            git clone https://github.com/Tatanagasai20/test-project.git
-
-                            echo "🚀 Deploying to Kubernetes..."
-                            cd ${APP_DIR}
-                            kubectl apply -f deployment.yaml
-                            kubectl apply -f service.yaml
-
-                            echo "✅ Deployment done!"
-                        EOF
+                    ssh -o StrictHostKeyChecking=no $K8S_MASTER '
+                        rm -rf test-project || true &&
+                        git clone https://github.com/Tatanagasai20/test-project.git &&
+                        cd $APP_DIR &&
+                        kubectl apply -f deployment.yaml &&
+                        kubectl apply -f service.yaml
+                    '
                     """
                 }
             }
