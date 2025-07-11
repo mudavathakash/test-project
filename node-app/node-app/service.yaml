@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: nodeapp-service
+  name: node-app-service
 spec:
   type: NodePort
   selector:
-    app: nodeapp
+    app: node-app
   ports:
     - protocol: TCP
-      port: 80
-      targetPort: 3000
-      nodePort: 30080
+      port: 80              # Cluster IP port (used internally)
+      targetPort: 3000      # Container port
+      nodePort: 30080       # External port on the worker node (range: 30000–32767)
