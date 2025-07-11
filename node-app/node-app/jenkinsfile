@@ -2,44 +2,51 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_USER = 'tnagasai'
+        DOCKER_IMAGE = "tnagasai/node-app:latest"
+        APP_DIR = "test-project/node-app/node-app"
+        SSH_KEY_ID = "test"
+        DOCKER_HOST = "ubuntu@13.233.206.224"     // Replace with your Docker EC2 IP
+        K8S_MASTER = "ubuntu@3.110.103.242"      // Replace with your K8s master IP
     }
 
     stages {
-        stage('Clone Code') {
+        stage('Clone Repository') {
             steps {
-                git 'https://github.com/Tatanagasai20/test-project.git'
+                git branch: 'main', url: 'https://github.com/Tatanagasai20/test-project.git'
             }
         }
 
         stage('Build & Push Docker Image') {
             steps {
-                dir('node-app/node-app') {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'dockerhub-creds',
-                        usernameVariable: 'DOCKER_USERNAME',
-                        passwordVariable: 'DOCKER_PASSWORD'
-                    )]) {
-                        sh 'docker build -t $DOCKER_USER/nodeapp-image:latest .'
-                        sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
-                        sh 'docker push $DOCKER_USER/nodeapp-image:latest'
-                    }
+                sshagent (credentials: [env.SSH_KEY_ID]) {
+                    sh """
+                    ssh -o StrictHostKeyChecking=no $DOCKER_HOST '
+                        cd /home/ubuntu &&
+                        rm -rf test-project || true &&
+                        git clone https://github.com/Tatanagasai20/test-project.git &&
+                        cd $APP_DIR &&
+                        docker build -t $DOCKER_IMAGE . &&
+                        echo "$DOCKER_HUB_PASSWORD" | docker login -u $DOCKER_HUB_USERNAME --password-stdin &&
+                        docker push $DOCKER_IMAGE
+                    '
+                    """
                 }
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                sshagent(['test']) {
-                    sh '''
-                    ssh -o StrictHostKeyChecking=no ubuntu@13.232.221.83 '
-                        rm -rf test-project &&
+                sshagent (credentials: [env.SSH_KEY_ID]) {
+                    sh """
+                    ssh -o StrictHostKeyChecking=no $K8S_MASTER '
+                        cd /home/ubuntu &&
+                        rm -rf test-project || true &&
                         git clone https://github.com/Tatanagasai20/test-project.git &&
-                        cd test-project/node-app/node-app &&
-                        /usr/bin/kubectl apply -f deployment.yaml &&
-                        /usr/bin/kubectl apply -f service.yaml
+                        cd $APP_DIR &&
+                        kubectl apply -f deployment.yaml &&
+                        kubectl apply -f service.yaml
                     '
-                    '''
+                    """
                 }
             }
         }
